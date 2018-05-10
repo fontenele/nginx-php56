@@ -82,7 +82,6 @@ RUN rm -f /etc/nginx/sites-enabled/default && \
 	chown -Rf www-data.www-data /var/www && \
 	touch /var/log/cron.log && \
 	touch /etc/cron.d/crontasks
-
 # cmd aliases
 RUN echo "alias l='ls -la'" >> /root/.bashrc
 # vim config
