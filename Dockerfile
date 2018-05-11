@@ -6,12 +6,17 @@ MAINTAINER Guilherme Fontenele <guilherme@fontenele.net>
 ENV DEFAULT_LOCALE=en_US
 ENV NGINX_VERSION=stable
 ENV DEBIAN_FRONTEND noninteractive
+
 # update aptitude repositories
-RUN apt-get update
+RUN apt-get update && apt-get install -y locales
+
+RUN dpkg-divert --local --rename --add /sbin/initctl && \
+	ln -sf /bin/true /sbin/initctl && \
+	# Setup default locale
+	locale-gen ${DEFAULT_LOCALE}.UTF-8 && \
+	export LANG=${DEFAULT_LOCALE}.UTF-8
 # base
-RUN apt-get install -y apt-utils net-tools wget git vim memcached software-properties-common npm curl
-# supervisor
-RUN apt-get install -y supervisor
+RUN apt-get install -y apt-utils net-tools wget git vim memcached software-properties-common npm curl supervisor
 # php5/nginx repositories
 RUN add-apt-repository ppa:nginx/${NGINX_VERSION}
 RUN add-apt-repository ppa:ondrej/php && apt-get update && apt-get upgrade -y
@@ -21,15 +26,14 @@ RUN apt-get install -y nginx php5.6-fpm php5.6-ssh2 php5.6-curl php5.6-intl php5
 # composer
 RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
 # clean some space
-RUN apt-get remove --purge -y software-properties-common
 RUN apt-get autoremove -y
 RUN apt-get clean
 RUN apt-get autoclean
 RUN echo -n > /var/lib/apt/extended_states && \
 	rm -rf /var/lib/apt/lists/* && \
 	rm -rf /usr/share/man/?? && \
-	rm -rf /usr/share/man/??_*
-RUN rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+	rm -rf /usr/share/man/??_* && \
+    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 # nginx config
 RUN sed -i -e"s/worker_processes  1/worker_processes 5/" /etc/nginx/nginx.conf && \
 	sed -i -e"s/keepalive_timeout\s*65/keepalive_timeout 2/" /etc/nginx/nginx.conf && \
@@ -53,8 +57,6 @@ RUN sed -i -e "s/;cgi.fix_pathinfo=1/cgi.fix_pathinfo=0/g" /etc/php/5.6/fpm/php.
 RUN sed -i -e "s/;listen.mode = 0660/listen.mode = 0750/g" /etc/php/5.6/fpm/pool.d/www.conf && \
 	find /etc/php/5.6/cli/conf.d/ -name "*.ini" -exec sed -i -re 's/^(\s*)#(.*)/\1;\2/g' {} \; && \
 	mkdir /run/php && \
-	# mcrypt configuration
-	phpenmod mcrypt && \
 	# Nginx site configuration
 	rm -Rf /etc/nginx/conf.d/* && \
 	rm -Rf /etc/nginx/sites-available/default && \
@@ -63,8 +65,7 @@ RUN sed -i -e "s/;listen.mode = 0660/listen.mode = 0750/g" /etc/php/5.6/fpm/pool
 	mkdir -p /var/www
 # https
 RUN openssl req -batch -nodes -newkey rsa:2048 -keyout /etc/ssl/private/server.key -out /tmp/server.csr -subj "/C=BR/ST=DF/L=Brasilia/O=Dev/OU=FS/CN=localhost"
-RUN openssl x509 -req -days 365 -in /tmp/server.csr -signkey /etc/ssl/private/server.key -out /etc/ssl/certs/server.crt
-RUN rm /tmp/server.csr
+RUN openssl x509 -req -days 365 -in /tmp/server.csr -signkey /etc/ssl/private/server.key -out /etc/ssl/certs/server.crt && rm /tmp/server.csr
 # node
 RUN npm cache clean -f && npm install -g n && n stable
 # copy nginx virtualhost config
